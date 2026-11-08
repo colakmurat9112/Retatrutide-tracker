@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reta Takip</title>
+<meta name="description" content="Retatrutide takip ve karar destek uygulaması — veriler yalnızca bu cihazda saklanır.">
+<meta name="theme-color" content="#0b0f17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Reta Takip">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style type="text/tailwindcss">
+  .card{@apply rounded-2xl border border-slate-800 bg-slate-900/60 p-4;}
+  .lbl{@apply text-[11px] uppercase tracking-wider text-slate-400;}
+  .val{@apply text-2xl font-semibold mt-1 tabular-nums;}
+  .sub{@apply text-xs text-slate-400 mt-0.5;}
+  .fl{@apply text-xs text-slate-400;}
+  .inp{@apply w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2.5 text-base text-slate-100 placeholder-slate-600 focus:outline-none focus:border-teal-400;}
+  .btn{@apply rounded-xl px-4 py-3 font-semibold transition active:scale-[.98] select-none;}
+  .btn-p{@apply bg-teal-400 text-slate-950 hover:bg-teal-300;}
+  .btn-s{@apply bg-slate-800 text-slate-100 border border-slate-700 hover:bg-slate-700;}
+  .chip{@apply px-3 py-1.5 rounded-full border border-slate-700 text-sm text-slate-300 bg-slate-900 transition select-none;}
+  .chip.on{@apply bg-teal-400/15 border-teal-400 text-teal-200;}
+  .ttl{@apply text-base font-semibold;}
+  .navb{@apply flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium text-slate-500;}
+  .seg{@apply px-3 py-1.5 rounded-lg text-sm text-slate-400;}
+  .seg.on{@apply bg-slate-700 text-white;}
+</style>
+<style>
+  :root{color-scheme:dark}
+  html,body{background:#0b0f17}
+  body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:999px;background:#1e293b;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#2dd4bf;border:4px solid #0b0f17;box-shadow:0 0 0 2px rgba(45,212,191,.45)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#2dd4bf;border:4px solid #0b0f17;box-shadow:0 0 0 2px rgba(45,212,191,.45)}
+  input[type=range].untouched::-webkit-slider-thumb{background:#475569;box-shadow:none}
+  input[type=range].untouched::-moz-range-thumb{background:#475569;box-shadow:none}
+  .ticks{background-image:repeating-linear-gradient(to right,rgba(148,163,184,.35) 0 1px,transparent 1px 10%)}
+  .no-scrollbar::-webkit-scrollbar{display:none}
+</style>
+</head>
+<body class="text-slate-100 antialiased">
+
+<header class="sticky top-0 z-30 bg-[#0b0f17]/90 backdrop-blur border-b border-slate-800/80" style="padding-top:env(safe-area-inset-top)">
+  <div class="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-400 to-indigo-500 grid place-items-center text-slate-950 font-black">R</div>
+      <div>
+        <div class="font-semibold leading-tight">Reta Takip</div>
+        <div class="text-[11px] text-slate-400 leading-tight">Takip &amp; karar destek</div>
+      </div>
+    </div>
+    <div id="hdrVial" class="text-xs px-2.5 py-1 rounded-full border"></div>
+  </div>
+</header>
+
+<main class="max-w-xl mx-auto px-4 pt-4" style="padding-bottom:calc(6.5rem + env(safe-area-inset-bottom))">
+
+  <!-- ============ ÖZET ============ -->
+  <section data-tab="ozet" class="tab space-y-4">
+    <div class="grid grid-cols-2 gap-3">
+      <div class="card col-span-2 bg-gradient-to-br from-teal-500/15 via-slate-900/60 to-indigo-500/15 border-teal-500/30">
+        <div class="lbl">Bugün kanda tahmini aktif ilaç</div>
+        <div class="flex items-end gap-2 mt-1"><span id="sActive" class="text-5xl font-bold tabular-nums">0</span><span class="text-slate-400 mb-1.5">mg</span></div>
+        <div id="sActiveSub" class="text-xs text-slate-400 mt-1"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Son kilo</div>
+        <div id="sWeight" class="val">—</div>
+        <div id="sWeightSub" class="sub"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Son enjeksiyon</div>
+        <div id="sLastInj" class="val">—</div>
+        <div id="sLastInjSub" class="sub"></div>
+      </div>
+    </div>
+
+    <!-- Flakon -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="ttl">🧪 Flakon &amp; Stok</h2>
+        <span id="vialBadge" class="text-xs px-2.5 py-1 rounded-full border"></span>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block"><span class="fl">Flakon (mg)</span><input id="vMg" type="text" inputmode="decimal" class="inp mt-1"></label>
+        <label class="block"><span class="fl">BAC su (ml)</span><input id="vMl" type="text" inputmode="decimal" class="inp mt-1"></label>
+        <label class="block col-span-2"><span class="fl">Sulandırma tarihi</span><input id="vDate" type="date" class="inp mt-1"></label>
+      </div>
+      <div class="mt-2 text-xs text-slate-400">Konsantrasyon: <b id="vConc" class="text-slate-200"></b> · 1 mg = <b id="vPerMg" class="text-slate-200"></b> IU</div>
+
+      <div id="vialBox" class="mt-4 rounded-xl p-3 border">
+        <div class="flex items-center gap-3">
+          <div class="text-center min-w-[64px]"><div id="vDays" class="text-3xl font-bold tabular-nums">0</div><div class="text-[10px] text-slate-400 -mt-0.5">gün</div></div>
+          <div id="vZoneMsg" class="text-sm text-slate-200 leading-snug"></div>
+        </div>
+        <div class="relative mt-3">
+          <div class="flex h-2 rounded-full overflow-hidden">
+            <div class="bg-emerald-500/70" style="width:36.36%"></div>
+            <div class="bg-yellow-400/70" style="width:41.56%"></div>
+            <div class="bg-orange-500/70" style="width:22.08%"></div>
+          </div>
+          <div id="vMarker" class="absolute -top-1 w-1 h-4 bg-white rounded-full -translate-x-1/2 shadow" style="left:0"></div>
+          <div class="flex justify-between text-[10px] text-slate-500 mt-1"><span>0</span><span>28</span><span>60</span><span>77</span></div>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="flex justify-between text-sm"><span class="text-slate-400">Şişede kalan</span><span id="vRem" class="font-semibold tabular-nums"></span></div>
+        <div class="h-2.5 rounded-full bg-slate-800 overflow-hidden mt-1.5"><div id="vBar" class="h-full bg-teal-400 transition-all" style="width:0"></div></div>
+        <div id="vRemSub" class="sub mt-1.5"></div>
+      </div>
+      <button id="btnNewVial" class="btn btn-s w-full mt-4 text-sm">Yeni flakon başlat (bugün sulandırıldı)</button>
+    </div>
+
+    <!-- Hesaplayıcı -->
+    <div class="card">
+      <h2 class="ttl mb-3">🎯 Ünite Hesaplayıcı</h2>
+      <div id="quickDoses" class="flex flex-wrap gap-2"></div>
+      <label class="block mt-3"><span class="fl">Hedef doz (mg)</span><input id="cMg" type="text" inputmode="decimal" class="inp mt-1"></label>
+      <div class="mt-4 text-center rounded-2xl bg-slate-950 border border-slate-800 pt-5 pb-4">
+        <div class="lbl">Şırıngaya çekilecek</div>
+        <div class="flex items-end justify-center gap-2"><span id="cIU" class="text-7xl font-black text-teal-300 tabular-nums leading-none mt-1">0</span><span class="text-2xl text-slate-400 mb-1">IU</span></div>
+        <div id="cSub" class="text-sm text-slate-400 mt-2"></div>
+        <div class="mx-5 mt-4">
+          <div class="relative h-7 rounded-md border border-slate-600 overflow-hidden ticks">
+            <div id="cFill" class="h-full bg-teal-400/60 transition-all" style="width:0"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-500 mt-1"><span>0</span><span>25</span><span>50</span><span>75</span><span>100 IU</span></div>
+        </div>
+        <div id="cWarn" class="text-xs text-amber-300 mt-3 px-4 empty:hidden"></div>
+      </div>
+      <button id="cToInj" class="btn btn-s w-full mt-3 text-sm">Bu dozu enjeksiyon kaydına aktar →</button>
+    </div>
+  </section>
+
+  <!-- ============ KAYIT ============ -->
+  <section data-tab="kayit" class="tab space-y-4 hidden">
+    <div class="card">
+      <h2 class="ttl mb-3">💉 Enjeksiyon Kaydı</h2>
+      <div id="siteWarn" class="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-100 text-sm p-3 mb-3 hidden"></div>
+      <label class="block"><span class="fl">Tarih / Saat</span><input id="iDt" type="datetime-local" class="inp mt-1"></label>
+      <div class="grid grid-cols-2 gap-2 mt-3">
+        <label class="block"><span class="fl">Alınan doz (mg)</span><input id="iMg" type="text" inputmode="decimal" class="inp mt-1"></label>
+        <label class="block"><span class="fl">Çekilen ünite (IU)</span><input id="iIU" type="text" inputmode="decimal" class="inp mt-1"></label>
+      </div>
+      <div class="mt-3">
+        <span class="fl">Enjeksiyon bölgesi</span>
+        <div id="siteGrid" class="grid grid-cols-2 gap-2 mt-1"></div>
+        <div id="siteSame" class="text-xs text-rose-300 mt-1.5 hidden">⚠️ Son enjeksiyon da bu bölgeye yapıldı — rotasyon için farklı bölge önerilir.</div>
+      </div>
+      <button id="btnSaveInj" class="btn btn-p w-full mt-4">Enjeksiyonu Kaydet</button>
+    </div>
+
+    <div class="card" id="logCard">
+      <h2 class="ttl mb-3">📋 Durum Kaydı</h2>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block"><span class="fl">Tarih</span><input id="lDate" type="date" class="inp mt-1"></label>
+        <label class="block"><span class="fl">Sabah kilosu (kg)</span><input id="lW" type="text" inputmode="decimal" placeholder="örn. 92,4" class="inp mt-1"></label>
+      </div>
+      <div id="lExisting" class="text-xs text-sky-300 mt-2 hidden">Bu tarih için kayıt var — kaydedersen güncellenir.</div>
+
+      <div class="mt-5">
+        <div class="flex justify-between items-baseline"><span class="text-sm font-medium">Açlık / İştah</span><span id="lHVal" class="text-sm font-bold text-teal-300"></span></div>
+        <input id="lH" type="range" min="1" max="10" step="1" value="5" class="mt-3">
+        <div class="flex justify-between text-[11px] text-slate-500 mt-1"><span>1 · Hiç aç değilim</span><span>10 · Çok açım</span></div>
+      </div>
+      <div class="mt-5">
+        <div class="flex justify-between items-baseline"><span class="text-sm font-medium">Enerji / Antrenman</span><span id="lEVal" class="text-sm font-bold text-teal-300"></span></div>
+        <input id="lE" type="range" min="1" max="10" step="1" value="5" class="mt-3">
+        <div class="flex justify-between text-[11px] text-slate-500 mt-1"><span>1 · Bitkin</span><span>10 · Mükemmel</span></div>
+      </div>
+
+      <div class="mt-5">
+        <span class="text-sm font-medium">Yan etkiler</span>
+        <div id="lFx" class="flex flex-wrap gap-2 mt-2"></div>
+      </div>
+      <label class="block mt-4"><span class="fl">Not</span><textarea id="lNote" rows="3" class="inp mt-1 resize-none" placeholder="Antrenman, yemek, uyku, his…"></textarea></label>
+      <button id="btnSaveLog" class="btn btn-p w-full mt-4">Durumu Kaydet</button>
+    </div>
+
+    <div class="card">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="ttl">🗂️ Geçmiş</h2>
+        <span class="text-[11px] text-slate-500">Durum kaydına dokun → düzenle</span>
+      </div>
+      <div id="history"></div>
+    </div>
+  </section>
+
+  <!-- ============ GRAFİK ============ -->
+  <section data-tab="grafik" class="tab space-y-4 hidden">
+    <div class="flex gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-max" id="rangeSeg">
+      <button class="seg" data-range="14">14 gün</button>
+      <button class="seg" data-range="30">30 gün</button>
+      <button class="seg" data-range="90">90 gün</button>
+      <button class="seg" data-range="all">Tümü</button>
+    </div>
+    <div id="chartEmpty" class="card text-sm text-slate-400 hidden">Grafik için henüz kayıt yok. Kayıt sekmesinden enjeksiyon ve durum eklediğinde burada görünecek.</div>
+    <div class="card" id="c1Card">
+      <h2 class="ttl">Kilo Değişimi &amp; Dozlar</h2>
+      <div id="c1Stats" class="text-xs text-slate-400 mt-1 mb-3"></div>
+      <div class="h-72"><canvas id="chart1"></canvas></div>
+    </div>
+    <div class="card" id="c2Card">
+      <h2 class="ttl">Açlık Skoru Trendi</h2>
+      <div id="c2Stats" class="text-xs text-slate-400 mt-1 mb-3"></div>
+      <div class="h-60"><canvas id="chart2"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ============ VERİ / RAPOR ============ -->
+  <section data-tab="veri" class="tab space-y-4 hidden">
+    <div class="card">
+      <h2 class="ttl">🤖 Haftalık AI Raporu</h2>
+      <p class="text-xs text-slate-400 mt-1">Dozlar, kanda tahmini seviye, kilo, açlık/enerji ortalamaları, yan etkiler ve notlar tek metin halinde kopyalanır.</p>
+      <div class="flex gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1 w-max mt-3" id="repSeg">
+        <button class="seg" data-rep="7">Son 7 gün</button>
+        <button class="seg" data-rep="14">Son 14 gün</button>
+      </div>
+      <button id="btnCopy" class="btn btn-p w-full mt-3 text-base">📋 Haftalık AI Raporu Kopyala</button>
+      <pre id="rPrev" class="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-[11.5px] leading-relaxed text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono"></pre>
+    </div>
+
+    <div class="card">
+      <h2 class="ttl">💾 Yedekleme</h2>
+      <p id="bkInfo" class="text-xs text-slate-400 mt-1"></p>
+      <div class="grid grid-cols-2 gap-2 mt-3">
+        <button id="btnExport" class="btn btn-s text-sm">⬇️ JSON Yedek İndir</button>
+        <label class="btn btn-s text-sm text-center cursor-pointer">⬆️ JSON Yedek Yükle<input id="fileIn" type="file" accept="application/json,.json" class="hidden"></label>
+      </div>
+      <p class="text-[11px] text-slate-500 mt-3">Veriler yalnızca bu tarayıcının localStorage alanında tutulur. Tarayıcı verisini silersen veya cihaz değiştirirsen kaybolur — düzenli yedek al.</p>
+    </div>
+
+    <div class="card border-rose-500/30">
+      <h2 class="ttl text-rose-300">Tehlikeli bölge</h2>
+      <button id="btnReset" class="btn w-full mt-3 text-sm bg-rose-500/10 text-rose-300 border border-rose-500/40">Tüm verileri sil</button>
+    </div>
+
+    <p class="text-[11px] text-slate-500 leading-relaxed px-1">
+      Bu uygulama kişisel kayıt aracıdır, tıbbi tavsiye değildir. "Kanda aktif ilaç" değeri 6 günlük yarılanma ömrüyle yapılan basit bir tahmindir; emilim, kilo ve bireysel farklılıkları hesaba katmaz. Doz değişikliklerini bir hekimle konuş.
+    </p>
+  </section>
+</main>
+
+<nav class="fixed bottom-0 inset-x-0 z-30 bg-[#0b0f17]/95 backdrop-blur border-t border-slate-800" style="padding-bottom:env(safe-area-inset-bottom)">
+  <div class="max-w-xl mx-auto grid grid-cols-4">
+    <button class="navb" data-go="ozet"><span class="text-xl">🏠</span>Özet</button>
+    <button class="navb" data-go="kayit"><span class="text-xl">✍️</span>Kayıt</button>
+    <button class="navb" data-go="grafik"><span class="text-xl">📈</span>Grafik</button>
+    <button class="navb" data-go="veri"><span class="text-xl">🤖</span>Rapor &amp; Yedek</button>
+  </div>
+</nav>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+'use strict';
+/* ================= Sabitler & yardımcılar ================= */
+const KEY = 'retaTakip.v1';
+const HALF_LIFE = 6; // gün
+const SITES = ['Sol Karın', 'Sağ Karın', 'Sol Bacak', 'Sağ Bacak'];
+const EFFECTS = ['Mide bulantısı', 'Reflü', 'Halsizlik', 'Kabızlık', 'İshal', 'Kusma', 'Baş ağrısı', 'Uykusuzluk', 'Kalp çarpıntısı', 'Bölge reaksiyonu'];
+const QUICK = [0.5, 1, 1.5, 2, 2.5, 3, 4];
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayStr = () => ymd(new Date());
+const nowInput = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function parseLocal(s) {
+  if (!s) return new Date(NaN);
+  const [dp, tp = '00:00'] = String(s).split('T');
+  const [y, m, d] = dp.split('-').map(Number);
+  const [h, mi] = tp.split(':').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, h || 0, mi || 0);
+}
+const calDays = (a, b) => Math.round((parseLocal(String(a).slice(0, 10)) - parseLocal(String(b).slice(0, 10))) / 864e5); // a - b
+const dShort = s => parseLocal(s).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
+const dFull = s => parseLocal(s).toLocaleDateString('tr-TR');
+const dWeek = s => parseLocal(s).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', weekday: 'short' });
+const dDM = s => { const d = parseLocal(s); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`; };
+const hm = s => { const d = parseLocal(s); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const num = v => { if (v == null || v === '') return null; const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+const fmt = (n, d = 2) => (n == null || !isFinite(n)) ? '—' : Number(n).toLocaleString('tr-TR', { maximumFractionDigits: d });
+const fmtIU = n => fmt(Math.round(n * 10) / 10, 1);
+const signed = (n, d = 1) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n), d);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const agoTxt = d => d === 0 ? 'bugün' : d === 1 ? 'dün' : d > 0 ? `${d} gün önce` : `${-d} gün sonra`;
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+function setIfIdle(id, v) { const el = $(id); if (document.activeElement !== el) el.value = v; }
+
+/* ================= Durum (localStorage) ================= */
+const defState = () => ({ vial: { mg: 20, ml: 2, reconDate: todayStr() }, injections: [], logs: [], settings: { targetMg: 1, lastBackup: null } });
+const numOrNull = v => (v == null || v === '' || !isFinite(+v)) ? null : +v;
+function normalize(d) {
+  const b = defState(); d = d || {};
+  const v = d.vial || {};
+  const injections = (Array.isArray(d.injections) ? d.injections : [])
+    .filter(i => i && typeof i.dt === 'string' && isFinite(+i.mg))
+    .map(i => ({ id: String(i.id || uid()), dt: i.dt.slice(0, 16), mg: +i.mg, iu: isFinite(+i.iu) ? +i.iu : 0, site: String(i.site || '') }));
+  const logs = (Array.isArray(d.logs) ? d.logs : [])
+    .filter(l => l && typeof l.date === 'string')
+    .map(l => ({ id: String(l.id || uid()), date: l.date.slice(0, 10), weight: numOrNull(l.weight), hunger: numOrNull(l.hunger), energy: numOrNull(l.energy),
+      effects: Array.isArray(l.effects) ? l.effects.map(String) : [], note: String(l.note || '') }));
+  return {
+    vial: { mg: +v.mg > 0 ? +v.mg : b.vial.mg, ml: +v.ml > 0 ? +v.ml : b.vial.ml, reconDate: (typeof v.reconDate === 'string' && v.reconDate) ? v.reconDate.slice(0, 10) : b.vial.reconDate },
+    injections, logs, settings: { ...b.settings, ...(d.settings || {}) }
+  };
+}
+function load() { try { const r = localStorage.getItem(KEY); return r ? normalize(JSON.parse(r)) : defState(); } catch (e) { return defState(); } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kaydedilemedi: depolama dolu veya kapalı olabilir', 'err'); } }
+let S = load();
+
+/* ================= Hesaplamalar ================= */
+const conc = () => S.vial.ml > 0 ? S.vial.mg / S.vial.ml : 0;            // mg/ml
+const iuFor = mg => { const c = conc(); return c > 0 ? mg / c * 100 : 0; }; // U-100: 1 ml = 100 IU
+const mgFor = iu => iu / 100 * conc();
+const sortedInj = () => [...S.injections].sort((a, b) => a.dt.localeCompare(b.dt));
+const sortedLogs = () => [...S.logs].sort((a, b) => a.date.localeCompare(b.date));
+const lastInj = () => { const s = sortedInj(); return s[s.length - 1] || null; };
+function activeAt(t) { // Kalan = Doz * 0.5^(gün/6)
+  const T = +t;
+  return S.injections.reduce((a, i) => { const d = (T - parseLocal(i.dt)) / 864e5; return d >= 0 ? a + i.mg * Math.pow(0.5, d / HALF_LIFE) : a; }, 0);
+}
+function vialCalc() {
+  const v = S.vial, c = conc(), start = parseLocal(v.reconDate);
+  const inVial = S.injections.filter(i => parseLocal(i.dt) >= start);
+  const used = inVial.reduce((a, i) => a + i.mg, 0);
+  const rem = Math.max(0, v.mg - used);
+  return { c, used, rem, remIU: c > 0 ? rem / c * 100 : 0, days: calDays(todayStr(), v.reconDate), pct: v.mg > 0 ? rem / v.mg * 100 : 0, count: inVial.length };
+}
+function zone(d) {
+  if (d < 0) return { k: 'gray', t: 'Gelecek tarih', m: 'Sulandırma tarihi bugünden sonra görünüyor — tarihi kontrol et.' };
+  if (d <= 28) return { k: 'green', t: 'Optimal', m: 'Optimal kullanım aralığı (0–28 gün). Buzdolabında (2–8 °C), ışıktan uzak sakla.' };
+  if (d <= 60) return { k: 'yellow', t: 'Berraklık kontrolü', m: 'Her çekişten önce berraklık kontrolü yap: bulanıklık, partikül veya renk değişimi varsa kullanma.' };
+  if (d <= 77) return { k: 'orange', t: 'Maksimum hijyen', m: 'Maksimum hijyen: tıpayı her seferinde alkolle sil, her seferinde yeni iğne kullan, berraklığı kontrol et.' };
+  return { k: 'red', t: 'Süre aşıldı', m: '77 günü geçti. Bu flakonu kullanmaman ve yeni flakona geçmen önerilir.' };
+}
+const ZC = {
+  green: { badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40', box: 'bg-emerald-500/10 border-emerald-500/30', num: 'text-emerald-300' },
+  yellow: { badge: 'bg-yellow-400/15 text-yellow-300 border-yellow-400/40', box: 'bg-yellow-400/10 border-yellow-400/30', num: 'text-yellow-300' },
+  orange: { badge: 'bg-orange-500/15 text-orange-300 border-orange-500/40', box: 'bg-orange-500/10 border-orange-500/30', num: 'text-orange-300' },
+  red: { badge: 'bg-rose-500/15 text-rose-300 border-rose-500/40', box: 'bg-rose-500/10 border-rose-500/30', num: 'text-rose-300' },
+  gray: { badge: 'bg-slate-700/40 text-slate-300 border-slate-600', box: 'bg-slate-800/50 border-slate-700', num: 'text-slate-300' }
+};
+const nextSite = s => { const i = SITES.indexOf(s); return SITES[(i + 1) % SITES.length] || SITES[0]; };
+const hungerTxt = v => v <= 1 ? 'Hiç aç değilim' : v <= 3 ? 'Çok az' : v <= 5 ? 'Hafif' : v <= 7 ? 'Belirgin' : v <= 9 ? 'Aç' : 'Çok açım';
+const energyTxt = v => v <= 2 ? 'Bitkin' : v <= 4 ? 'Düşük' : v <= 6 ? 'Orta' : v <= 8 ? 'İyi' : 'Mükemmel';
+
+/* ================= Özet ================= */
+function renderSummary() {
+  const now = new Date();
+  const act = activeAt(now);
+  $('sActive').textContent = fmt(act, 2);
+  const in7 = new Date(+now + 7 * 864e5);
+  $('sActiveSub').textContent = S.injections.length
+    ? `t½ = 6 gün varsayımı · yeni doz olmazsa 7 gün sonra ≈ ${fmt(activeAt(in7), 2)} mg`
+    : 'Henüz enjeksiyon kaydı yok.';
+
+  const wl = sortedLogs().filter(l => l.weight != null);
+  if (wl.length) {
+    const last = wl[wl.length - 1], first = wl[0], diff = last.weight - first.weight;
+    $('sWeight').innerHTML = `${fmt(last.weight, 1)}<span class="text-sm text-slate-400 font-normal"> kg</span>`;
+    $('sWeightSub').innerHTML = wl.length > 1
+      ? `Başlangıçtan <span class="${diff < 0 ? 'text-emerald-300' : diff > 0 ? 'text-rose-300' : ''} font-semibold">${signed(diff)} kg</span>`
+      : dShort(last.date);
+  } else { $('sWeight').textContent = '—'; $('sWeightSub').textContent = 'Kilo kaydı yok'; }
+
+  const li = lastInj();
+  if (li) {
+    const d = calDays(todayStr(), li.dt);
+    $('sLastInj').innerHTML = d === 0 ? 'Bugün' : d === 1 ? 'Dün' : `${d}<span class="text-sm text-slate-400 font-normal"> gün önce</span>`;
+    const next = new Date(parseLocal(li.dt)); next.setDate(next.getDate() + 7);
+    const late = calDays(todayStr(), ymd(next));
+    $('sLastInjSub').innerHTML = `${fmt(li.mg, 2)} mg · ${esc(li.site)}<br>Haftalık plan: ${dWeek(ymd(next))}${late > 0 ? ` <span class="text-amber-300">(${late} gün geçti)</span>` : ''}`;
+  } else { $('sLastInj').textContent = '—'; $('sLastInjSub').textContent = 'Kayıt yok'; }
+}
+
+function renderVial() {
+  const v = S.vial, vc = vialCalc(), z = zone(vc.days), zc = ZC[z.k];
+  setIfIdle('vMg', fmt(v.mg, 2)); setIfIdle('vMl', fmt(v.ml, 2)); setIfIdle('vDate', v.reconDate);
+  $('vConc').textContent = `${fmt(vc.c, 2)} mg/ml`;
+  $('vPerMg').textContent = fmtIU(iuFor(1));
+  $('vialBadge').className = 'text-xs px-2.5 py-1 rounded-full border ' + zc.badge;
+  $('vialBadge').textContent = z.t;
+  $('hdrVial').className = 'text-xs px-2.5 py-1 rounded-full border ' + zc.badge;
+  $('hdrVial').textContent = vc.days >= 0 ? `Flakon ${vc.days}. gün` : 'Flakon ?';
+  $('vialBox').className = 'mt-4 rounded-xl p-3 border ' + zc.box;
+  $('vDays').className = 'text-3xl font-bold tabular-nums ' + zc.num;
+  $('vDays').textContent = vc.days < 0 ? '—' : vc.days;
+  $('vZoneMsg').textContent = z.m;
+  $('vMarker').style.left = Math.min(100, Math.max(0, vc.days / 77 * 100)) + '%';
+  $('vRem').textContent = `${fmt(vc.rem, 2)} mg · ${fmtIU(vc.remIU)} IU`;
+  const bar = $('vBar');
+  bar.style.width = Math.max(0, Math.min(100, vc.pct)) + '%';
+  bar.className = 'h-full transition-all ' + (vc.pct < 15 ? 'bg-rose-400' : vc.pct < 35 ? 'bg-amber-400' : 'bg-teal-400');
+  const t = S.settings.targetMg;
+  $('vRemSub').textContent = `Kullanılan: ${fmt(vc.used, 2)} mg (${vc.count} enjeksiyon)` + (t > 0 ? ` · ${fmt(t, 2)} mg dozla ≈ ${Math.floor(vc.rem / t + 1e-9)} doz kaldı` : '');
+}
+
+function renderCalc() {
+  const mg = +S.settings.targetMg || 0, iu = iuFor(mg), vc = vialCalc();
+  setIfIdle('cMg', mg ? fmt(mg, 3) : '');
+  $('cIU').textContent = fmtIU(iu);
+  $('cSub').textContent = `= ${fmt(iu / 100, 3)} ml · U-100 insülin şırıngası (1 ml = 100 IU)`;
+  $('cFill').style.width = Math.min(100, iu) + '%';
+  const w = [];
+  if (iu > 100) w.push('100 IU üstü: tek 1 ml şırıngaya sığmaz.');
+  if (mg > vc.rem + 1e-9) w.push(`Flakonda kalan miktardan (${fmt(vc.rem, 2)} mg) fazla.`);
+  if (iu > 0 && iu < 3) w.push('Çok küçük hacim — şırınga çizgilerini dikkatle oku.');
+  $('cWarn').textContent = w.join(' ');
+  document.querySelectorAll('#quickDoses button').forEach(b => {
+    const on = Math.abs(+b.dataset.mg - mg) < 1e-9;
+    b.className = 'chip' + (on ? ' on' : '');
+  });
+}
+
+/* ================= Kayıt formu ================= */
+let siteSel = null, hTouched = false, eTouched = false;
+function renderInjForm() {
+  const li = lastInj(), w = $('siteWarn');
+  if (li) {
+    w.innerHTML = `⚠️ Bir önceki enjeksiyon bölgesi: <b>${esc(li.site)}</b> (${agoTxt(calDays(todayStr(), li.dt))}). Rotasyon önerisi: <b>${nextSite(li.site)}</b>`;
+    w.classList.remove('hidden');
+  } else w.classList.add('hidden');
+  if (!siteSel) siteSel = li ? nextSite(li.site) : SITES[0];
+  $('siteGrid').innerHTML = SITES.map(s => {
+    const on = s === siteSel, last = li && li.site === s;
+    return `<button type="button" data-site="${s}" class="relative rounded-xl border px-3 py-3 text-sm font-medium transition ${on ? 'bg-teal-400/15 border-teal-400 text-teal-200' : 'bg-slate-950 border-slate-700 text-slate-300'}">
+      ${s}${last ? '<span class="absolute top-1 right-1.5 text-[9px] px-1.5 rounded bg-amber-500/20 text-amber-300">son</span>' : ''}</button>`;
+  }).join('');
+  $('siteSame').classList.toggle('hidden', !(li && li.site === siteSel));
+}
+function syncFromMg() { const mg = num($('iMg').value); $('iIU').value = mg != null ? fmtIU(iuFor(mg)) : ''; }
+function syncFromIU() { const iu = num($('iIU').value); $('iMg').value = iu != null ? fmt(mgFor(iu), 3) : ''; }
+
+function paintRange(el, touched) {
+  const p = (el.value - el.min) / (el.max - el.min) * 100;
+  el.classList.toggle('untouched', !touched);
+  el.style.background = touched ? `linear-gradient(to right,#2dd4bf ${p}%,#1e293b ${p}%)` : '#1e293b';
+}
+function renderSliders() {
+  const h = +$('lH').value, e = +$('lE').value;
+  $('lHVal').textContent = hTouched ? `${h} · ${hungerTxt(h)}` : 'Seçilmedi';
+  $('lEVal').textContent = eTouched ? `${e} · ${energyTxt(e)}` : 'Seçilmedi';
+  $('lHVal').className = 'text-sm font-bold ' + (hTouched ? 'text-teal-300' : 'text-slate-500');
+  $('lEVal').className = 'text-sm font-bold ' + (eTouched ? 'text-teal-300' : 'text-slate-500');
+  paintRange($('lH'), hTouched); paintRange($('lE'), eTouched);
+}
+function loadLogForm(date) {
+  const l = S.logs.find(x => x.date === date);
+  $('lDate').value = date;
+  $('lW').value = l && l.weight != null ? fmt(l.weight, 1) : '';
+  hTouched = !!(l && l.hunger != null); eTouched = !!(l && l.energy != null);
+  $('lH').value = l && l.hunger != null ? l.hunger : 5;
+  $('lE').value = l && l.energy != null ? l.energy : 5;
+  const fx = new Set(l ? l.effects : []);
+  document.querySelectorAll('#lFx .chip').forEach(c => c.classList.toggle('on', fx.has(c.dataset.fx)));
+  $('lNote').value = l ? l.note : '';
+  $('lExisting').classList.toggle('hidden', !l);
+  renderSliders();
+}
+
+function renderHistory() {
+  const items = [
+    ...S.injections.map(i => ({ k: i.dt, html:
+      `<div class="flex items-start gap-3 py-2.5 border-b border-slate-800/70 last:border-0">
+        <div class="w-9 h-9 rounded-lg bg-indigo-500/15 grid place-items-center shrink-0">💉</div>
+        <div class="flex-1 min-w-0"><div class="text-sm font-medium">${fmt(i.mg, 2)} mg · ${fmtIU(i.iu)} IU · ${esc(i.site)}</div>
+        <div class="text-xs text-slate-400">${dWeek(i.dt)} · ${hm(i.dt)}</div></div>
+        <button data-del="inj:${i.id}" class="text-slate-500 hover:text-rose-400 px-2 text-xl leading-none" aria-label="Sil">×</button></div>` })),
+    ...S.logs.map(l => {
+      const parts = [];
+      if (l.weight != null) parts.push(`${fmt(l.weight, 1)} kg`);
+      if (l.hunger != null) parts.push(`Açlık ${l.hunger}/10`);
+      if (l.energy != null) parts.push(`Enerji ${l.energy}/10`);
+      return { k: l.date + 'T23:59', html:
+      `<div class="flex items-start gap-3 py-2.5 border-b border-slate-800/70 last:border-0">
+        <div class="w-9 h-9 rounded-lg bg-teal-500/15 grid place-items-center shrink-0">📋</div>
+        <div class="flex-1 min-w-0 cursor-pointer" data-edit="${l.date}"><div class="text-sm font-medium">${parts.join(' · ') || 'Durum'}</div>
+        <div class="text-xs text-slate-400">${dWeek(l.date)}${l.effects.length ? ' · ' + esc(l.effects.join(', ')) : ''}</div>
+        ${l.note ? `<div class="text-xs text-slate-500 italic mt-0.5 line-clamp-2">“${esc(l.note)}”</div>` : ''}</div>
+        <button data-del="log:${l.id}" class="text-slate-500 hover:text-rose-400 px-2 text-xl leading-none" aria-label="Sil">×</button></div>` };
+    })
+  ].sort((a, b) => b.k.localeCompare(a.k)).slice(0, 40);
+  $('history').innerHTML = items.length ? items.map(x => x.html).join('') : '<div class="text-sm text-slate-500 py-3">Henüz kayıt yok.</div>';
+}
+
+/* ================= Grafikler ================= */
+let ch1 = null, ch2 = null, chartRange = '30';
+if (window.Chart) {
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = 'rgba(148,163,184,.12)';
+  Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+}
+function buildSeries() {
+  const dates = [...S.injections.map(i => i.dt.slice(0, 10)), ...S.logs.map(l => l.date)].sort();
+  if (!dates.length) return null;
+  const today = todayStr();
+  let start = dates[0];
+  if (chartRange !== 'all') { const s = new Date(); s.setDate(s.getDate() - (+chartRange - 1)); const ss = ymd(s); if (ss > start) start = ss; }
+  const endStr = dates[dates.length - 1] > today ? dates[dates.length - 1] : today;
+  const keys = []; const d = parseLocal(start), end = parseLocal(endStr);
+  while (d <= end) { keys.push(ymd(d)); d.setDate(d.getDate() + 1); }
+  const doseMap = {}; S.injections.forEach(i => { const k = i.dt.slice(0, 10); doseMap[k] = (doseMap[k] || 0) + i.mg; });
+  const logMap = {}; S.logs.forEach(l => logMap[l.date] = l);
+  const now = new Date();
+  const hunger = keys.map(k => logMap[k]?.hunger ?? null);
+  const hungerMA = keys.map((k, idx) => { const w = hunger.slice(Math.max(0, idx - 6), idx + 1).filter(v => v != null); return w.length ? +(avg(w).toFixed(2)) : null; });
+  return {
+    keys, labels: keys.map(dShort),
+    weight: keys.map(k => logMap[k]?.weight ?? null),
+    dose: keys.map(k => doseMap[k] ?? null),
+    active: keys.map(k => { const t = k === today ? now : new Date(parseLocal(k).getTime() + (23 * 60 + 59) * 6e4); return +activeAt(t).toFixed(3); }),
+    hunger, hungerMA,
+    energy: keys.map(k => logMap[k]?.energy ?? null)
+  };
+}
+function renderCharts() {
+  document.querySelectorAll('#rangeSeg .seg').forEach(b => b.classList.toggle('on', b.dataset.range === chartRange));
+  const s = buildSeries();
+  $('chartEmpty').classList.toggle('hidden', !!s);
+  $('c1Card').classList.toggle('hidden', !s); $('c2Card').classList.toggle('hidden', !s);
+  if (ch1) { ch1.destroy(); ch1 = null; } if (ch2) { ch2.destroy(); ch2 = null; }
+  if (!s) return;
+  if (!window.Chart) { $('c1Stats').textContent = 'Chart.js yüklenemedi (internet bağlantısını kontrol et).'; return; }
+
+  const ws = s.weight.filter(v => v != null);
+  const doseSum = s.dose.reduce((a, v) => a + (v || 0), 0);
+  $('c1Stats').textContent = (ws.length > 1 ? `Dönem kilo değişimi: ${signed(ws[ws.length - 1] - ws[0])} kg · ` : '') + `Dönem toplam doz: ${fmt(doseSum, 2)} mg`;
+  const hs = s.hunger.filter(v => v != null), es = s.energy.filter(v => v != null);
+  $('c2Stats').textContent = hs.length ? `Ort. açlık: ${fmt(avg(hs), 1)}/10${es.length ? ` · Ort. enerji: ${fmt(avg(es), 1)}/10` : ''}` : 'Bu dönemde açlık skoru yok.';
+
+  const common = {
+    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, font: { size: 11 } } },
+      tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1, padding: 10 } },
+    scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, font: { size: 10 } }, grid: { display: false } } }
+  };
+  ch1 = new Chart($('chart1'), {
+    data: { labels: s.labels, datasets: [
+      { type: 'line', label: 'Kilo (kg)', data: s.weight, yAxisID: 'y', borderColor: '#2dd4bf', backgroundColor: '#2dd4bf', spanGaps: true, tension: .3, pointRadius: 3, borderWidth: 2, order: 1 },
+      { type: 'bar', label: 'Doz (mg)', data: s.dose, yAxisID: 'y1', backgroundColor: 'rgba(129,140,248,.65)', borderRadius: 4, maxBarThickness: 14, order: 3 },
+      { type: 'line', label: 'Kanda aktif (mg)', data: s.active, yAxisID: 'y1', borderColor: 'rgba(244,114,182,.85)', backgroundColor: 'rgba(244,114,182,.85)', borderDash: [5, 4], pointRadius: 0, tension: .3, borderWidth: 1.5, order: 2 }
+    ] },
+    options: { ...common, scales: { ...common.scales,
+      y: { position: 'left', title: { display: true, text: 'kg', font: { size: 10 } }, grace: '5%' },
+      y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'mg', font: { size: 10 } } } } }
+  });
+  ch2 = new Chart($('chart2'), {
+    type: 'line',
+    data: { labels: s.labels, datasets: [
+      { label: 'Açlık (1–10)', data: s.hunger, borderColor: '#fbbf24', backgroundColor: '#fbbf24', spanGaps: true, tension: .3, pointRadius: 3, borderWidth: 2 },
+      { label: '7 gün ort.', data: s.hungerMA, borderColor: 'rgba(251,191,36,.45)', borderDash: [5, 4], spanGaps: true, tension: .4, pointRadius: 0, borderWidth: 1.5 },
+      { label: 'Enerji', data: s.energy, borderColor: 'rgba(56,189,248,.6)', backgroundColor: 'rgba(56,189,248,.6)', spanGaps: true, tension: .3, pointRadius: 2, borderWidth: 1.5 }
+    ] },
+    options: { ...common, scales: { ...common.scales, y: { min: 1, max: 10, ticks: { stepSize: 1 } } } }
+  });
+}
+
+/* ================= AI raporu ================= */
+let repDays = 14;
+function buildReport(n) {
+  const now = new Date(), today = todayStr();
+  const f = new Date(); f.setDate(f.getDate() - (n - 1)); const fromS = ymd(f);
+  const all = sortedInj();
+  const inj = all.filter(i => i.dt.slice(0, 10) >= fromS && i.dt.slice(0, 10) <= today);
+  const logs = sortedLogs().filter(l => l.date >= fromS && l.date <= today);
+  const vc = vialCalc(), z = zone(vc.days);
+  const L = [];
+  L.push(`RETATRUTIDE TAKİP RAPORU — son ${n} gün (${dFull(fromS)} – ${dFull(today)})`);
+  L.push('');
+  L.push('■ GENEL DURUM');
+  L.push(`- Bugün kanda tahmini aktif ilaç: ${fmt(activeAt(now), 2)} mg (yarılanma ömrü 6 gün varsayımıyla basit üstel tahmin)`);
+  const li = all[all.length - 1];
+  if (li) {
+    L.push(`- Son enjeksiyon: ${dFull(li.dt)} ${hm(li.dt)} — ${fmt(li.mg, 2)} mg (${fmtIU(li.iu)} IU), ${li.site} (${agoTxt(calDays(today, li.dt))})`);
+    let k = 0, firstAt = null;
+    for (let i = all.length - 1; i >= 0; i--) { if (Math.abs(all[i].mg - li.mg) < 1e-9) { k++; firstAt = all[i].dt; } else break; }
+    const prev = all[all.length - 1 - k];
+    L.push(`- Mevcut doz: ${fmt(li.mg, 2)} mg — bu dozda ${k}. enjeksiyon (bu doza geçiş: ${dFull(firstAt)}, ${calDays(today, firstAt)} gün önce)${prev ? `; önceki doz: ${fmt(prev.mg, 2)} mg` : ''}`);
+    const tot = all.reduce((a, i) => a + i.mg, 0);
+    L.push(`- Genel: ilk enjeksiyon ${dFull(all[0].dt)} (${calDays(today, all[0].dt)} gün önce), toplam ${all.length} enjeksiyon, ${fmt(tot, 2)} mg`);
+  } else L.push('- Henüz enjeksiyon kaydı yok.');
+  L.push(`- Flakon: ${fmt(S.vial.mg, 2)} mg + ${fmt(S.vial.ml, 2)} ml BAC su (${fmt(vc.c, 2)} mg/ml), sulandırma ${dFull(S.vial.reconDate)} → ${vc.days}. gün (${z.t}); kalan ≈ ${fmt(vc.rem, 2)} mg / ${fmtIU(vc.remIU)} IU`);
+  L.push('');
+
+  L.push('■ DOZLAR (dönem içi)');
+  if (inj.length) {
+    inj.forEach(i => L.push(`- ${dFull(i.dt)} ${hm(i.dt)}: ${fmt(i.mg, 2)} mg (${fmtIU(i.iu)} IU) — ${i.site}`));
+    L.push(`Toplam: ${fmt(inj.reduce((a, i) => a + i.mg, 0), 2)} mg, ${inj.length} enjeksiyon`);
+  } else L.push('- Bu dönemde enjeksiyon kaydı yok.');
+  L.push('');
+
+  L.push('■ KİLO (sabah)');
+  const wl = logs.filter(l => l.weight != null);
+  if (wl.length) {
+    const a = wl[0], b = wl[wl.length - 1], dd = calDays(b.date, a.date), ch = b.weight - a.weight;
+    L.push(`- Dönem: ${fmt(a.weight, 1)} kg (${dDM(a.date)}) → ${fmt(b.weight, 1)} kg (${dDM(b.date)}) = ${signed(ch)} kg`);
+    if (dd >= 3) L.push(`- Haftalık hız: ${signed(ch / dd * 7, 2)} kg/hafta`);
+    const allW = sortedLogs().filter(l => l.weight != null);
+    if (allW.length && allW[0].date < a.date) L.push(`- Başlangıçtan beri: ${fmt(allW[0].weight, 1)} kg (${dFull(allW[0].date)}) → ${fmt(b.weight, 1)} kg = ${signed(b.weight - allW[0].weight)} kg`);
+    L.push(`- Ölçümler: ${wl.map(l => `${dDM(l.date)} ${fmt(l.weight, 1)}`).join(' · ')}`);
+  } else L.push('- Bu dönemde kilo kaydı yok.');
+  L.push('');
+
+  const hs = logs.filter(l => l.hunger != null), es = logs.filter(l => l.energy != null);
+  L.push('■ AÇLIK / İŞTAH (1 = hiç aç değilim, 10 = çok açım)');
+  if (hs.length) {
+    const vals = hs.map(l => l.hunger);
+    L.push(`- Ortalama: ${fmt(avg(vals), 1)}/10 (min ${Math.min(...vals)}, maks ${Math.max(...vals)}, ${hs.length} gün)`);
+    if (hs.length >= 4) { const m = Math.floor(vals.length / 2); L.push(`- Dönemin ilk yarısı ort. ${fmt(avg(vals.slice(0, m)), 1)} → ikinci yarısı ort. ${fmt(avg(vals.slice(m)), 1)}`); }
+    L.push(`- Günlük: ${hs.map(l => `${dDM(l.date)} ${l.hunger}`).join(' · ')}`);
+  } else L.push('- Kayıt yok.');
+  L.push('');
+  L.push('■ ENERJİ / ANTRENMAN (1–10)');
+  L.push(es.length ? `- Ortalama: ${fmt(avg(es.map(l => l.energy)), 1)}/10 · Günlük: ${es.map(l => `${dDM(l.date)} ${l.energy}`).join(' · ')}` : '- Kayıt yok.');
+  L.push('');
+
+  L.push('■ YAN ETKİLER');
+  const cnt = {}; logs.forEach(l => l.effects.forEach(e => cnt[e] = (cnt[e] || 0) + 1));
+  const ent = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
+  L.push(ent.length ? ent.map(([e, c]) => `- ${e}: ${c} gün`).join('\n') : '- Kayıtlı yan etki yok.');
+  L.push('');
+
+  L.push('■ NOTLAR');
+  const notes = logs.filter(l => l.note.trim());
+  L.push(notes.length ? notes.map(l => `- ${dDM(l.date)}: ${l.note.trim().replace(/\s*\n\s*/g, ' / ')}`).join('\n') : '- Not yok.');
+  return L.join('\n');
+}
+function renderReport() {
+  document.querySelectorAll('#repSeg .seg').forEach(b => b.classList.toggle('on', +b.dataset.rep === repDays));
+  $('rPrev').textContent = buildReport(repDays);
+  const lb = S.settings.lastBackup;
+  const d = lb ? calDays(todayStr(), ymd(new Date(lb))) : null;
+  $('bkInfo').innerHTML = `${S.injections.length} enjeksiyon, ${S.logs.length} durum kaydı. ` +
+    (lb ? `Son yedek: ${new Date(lb).toLocaleDateString('tr-TR')}${d > 7 ? ' <span class="text-amber-300">(1 haftadan eski)</span>' : ''}` : '<span class="text-amber-300">Henüz yedek alınmadı.</span>');
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch (e) {
+    const ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove(); return ok;
+  }
+}
+
+/* ================= Genel ================= */
+function toast(msg, type = 'ok') {
+  const t = $('toast'); t.textContent = msg;
+  t.className = `fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg max-w-[90vw] text-center ${type === 'err' ? 'bg-rose-500 text-white' : 'bg-teal-400 text-slate-950'}`;
+  t.style.bottom = 'calc(5.5rem + env(safe-area-inset-bottom))';
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'hidden', 2400);
+}
+let curTab = 'ozet';
+function go(tab) {
+  curTab = tab;
+  document.querySelectorAll('.tab').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== tab));
+  document.querySelectorAll('[data-go]').forEach(b => { const on = b.dataset.go === tab; b.classList.toggle('text-teal-300', on); b.classList.toggle('text-slate-500', !on); });
+  if (tab === 'grafik') renderCharts();
+  if (tab === 'veri') renderReport();
+  if (tab === 'kayit') renderInjForm();
+  window.scrollTo({ top: 0 });
+  if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
+}
+function renderAll() {
+  renderSummary(); renderVial(); renderCalc(); renderInjForm(); renderHistory();
+  if (curTab === 'grafik') renderCharts();
+  if (curTab === 'veri') renderReport();
+}
+
+/* ================= Olaylar ================= */
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+
+// Flakon
+function onVialChange() {
+  const mg = num($('vMg').value), ml = num($('vMl').value), dt = $('vDate').value;
+  if (mg != null && mg > 0) S.vial.mg = mg;
+  if (ml != null && ml > 0) S.vial.ml = ml;
+  if (dt) S.vial.reconDate = dt;
+  save(); renderAll();
+}
+['vMg', 'vMl'].forEach(id => { $(id).addEventListener('change', onVialChange); $(id).addEventListener('blur', () => renderVial()); });
+$('vDate').addEventListener('change', onVialChange);
+$('btnNewVial').addEventListener('click', () => {
+  if (!confirm('Yeni flakon bugün sulandırılmış olarak başlatılsın mı? (Flakon mg / ml değerleri aynı kalır, sayaç sıfırlanır.)')) return;
+  S.vial.reconDate = todayStr(); save(); renderAll(); toast('Yeni flakon başlatıldı');
+});
+
+// Hesaplayıcı
+$('quickDoses').innerHTML = QUICK.map(q => `<button type="button" data-mg="${q}" class="chip">${fmt(q, 2)} mg</button>`).join('');
+$('quickDoses').addEventListener('click', e => { const b = e.target.closest('[data-mg]'); if (!b) return; S.settings.targetMg = +b.dataset.mg; save(); $('cMg').value = fmt(+b.dataset.mg, 3); renderCalc(); renderVial(); });
+$('cMg').addEventListener('input', () => { const v = num($('cMg').value); S.settings.targetMg = v != null && v >= 0 ? v : 0; save(); renderCalc(); renderVial(); });
+$('cToInj').addEventListener('click', () => { go('kayit'); $('iMg').value = fmt(S.settings.targetMg, 3); syncFromMg(); $('iDt').value = nowInput(); });
+
+// Enjeksiyon
+$('iMg').addEventListener('input', syncFromMg);
+$('iIU').addEventListener('input', syncFromIU);
+$('siteGrid').addEventListener('click', e => { const b = e.target.closest('[data-site]'); if (!b) return; siteSel = b.dataset.site; renderInjForm(); });
+$('btnSaveInj').addEventListener('click', () => {
+  const dt = $('iDt').value, mg = num($('iMg').value);
+  if (!dt) return toast('Tarih/saat gir', 'err');
+  if (mg == null || mg <= 0) return toast('Geçerli bir doz (mg) gir', 'err');
+  if (!siteSel) return toast('Enjeksiyon bölgesi seç', 'err');
+  const vc = vialCalc();
+  if (parseLocal(dt) >= parseLocal(S.vial.reconDate) && mg > vc.rem + 1e-9 && !confirm(`Bu doz flakonda kalan miktardan (${fmt(vc.rem, 2)} mg) fazla. Yine de kaydedilsin mi?`)) return;
+  const iu = num($('iIU').value);
+  S.injections.push({ id: uid(), dt, mg, iu: iu != null ? iu : iuFor(mg), site: siteSel });
+  save();
+  siteSel = nextSite(siteSel);
+  $('iDt').value = nowInput();
+  renderAll(); toast(`Kaydedildi: ${fmt(mg, 2)} mg`);
+});
+
+// Durum
+$('lFx').innerHTML = EFFECTS.map(e => `<button type="button" class="chip" data-fx="${e}">${e}</button>`).join('');
+$('lFx').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) c.classList.toggle('on'); });
+$('lH').addEventListener('input', () => { hTouched = true; renderSliders(); });
+$('lE').addEventListener('input', () => { eTouched = true; renderSliders(); });
+$('lDate').addEventListener('change', () => { if ($('lDate').value) loadLogForm($('lDate').value); });
+$('btnSaveLog').addEventListener('click', () => {
+  const date = $('lDate').value;
+  if (!date) return toast('Tarih seç', 'err');
+  const wRaw = $('lW').value.trim(), weight = num(wRaw);
+  if (wRaw && (weight == null || weight <= 0 || weight > 400)) return toast('Kilo değeri geçersiz', 'err');
+  const effects = [...document.querySelectorAll('#lFx .chip.on')].map(c => c.dataset.fx);
+  const note = $('lNote').value.trim();
+  const rec = { date, weight, hunger: hTouched ? +$('lH').value : null, energy: eTouched ? +$('lE').value : null, effects, note };
+  if (rec.weight == null && rec.hunger == null && rec.energy == null && !effects.length && !note) return toast('Kaydedilecek bir bilgi gir', 'err');
+  const ex = S.logs.find(l => l.date === date);
+  if (ex) Object.assign(ex, rec); else S.logs.push({ id: uid(), ...rec });
+  save(); renderAll(); loadLogForm(date);
+  toast(ex ? 'Durum güncellendi' : 'Durum kaydedildi');
+});
+
+// Geçmiş
+$('history').addEventListener('click', e => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const [t, id] = del.dataset.del.split(':');
+    if (!confirm('Bu kayıt silinsin mi?')) return;
+    if (t === 'inj') S.injections = S.injections.filter(i => i.id !== id); else S.logs = S.logs.filter(l => l.id !== id);
+    save(); renderAll(); loadLogForm($('lDate').value || todayStr()); toast('Silindi'); return;
+  }
+  const ed = e.target.closest('[data-edit]');
+  if (ed) { loadLogForm(ed.dataset.edit); $('logCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+});
+
+// Grafik / rapor seçiciler
+$('rangeSeg').addEventListener('click', e => { const b = e.target.closest('[data-range]'); if (!b) return; chartRange = b.dataset.range; renderCharts(); });
+$('repSeg').addEventListener('click', e => { const b = e.target.closest('[data-rep]'); if (!b) return; repDays = +b.dataset.rep; renderReport(); });
+$('btnCopy').addEventListener('click', async () => {
+  const txt = buildReport(repDays); $('rPrev').textContent = txt;
+  (await copyText(txt)) ? toast('Rapor panoya kopyalandı ✓') : toast('Kopyalanamadı — metni elle seçip kopyala', 'err');
+});
+
+// Yedek
+$('btnExport').addEventListener('click', () => {
+  S.settings.lastBackup = new Date().toISOString(); save();
+  const blob = new Blob([JSON.stringify({ app: 'reta-takip', version: 1, exportedAt: S.settings.lastBackup, data: S }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `reta-takip-yedek-${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  renderReport(); toast('Yedek indirildi');
+});
+$('fileIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const obj = JSON.parse(await f.text()), d = obj && obj.data ? obj.data : obj;
+    if (!d || !Array.isArray(d.injections) || !Array.isArray(d.logs)) throw new Error('format');
+    if (!confirm(`Yedekte ${d.injections.length} enjeksiyon ve ${d.logs.length} durum kaydı var. Mevcut verilerin ÜZERİNE yazılsın mı?`)) return;
+    S = normalize(d); save(); siteSel = null; renderAll(); loadLogForm(todayStr()); toast('Yedek yüklendi');
+  } catch (err) { toast('Geçersiz yedek dosyası', 'err'); }
+  finally { e.target.value = ''; }
+});
+$('btnReset').addEventListener('click', () => {
+  const r = prompt('Tüm veriler kalıcı olarak silinecek. Onaylamak için SİL yaz:');
+  if (r == null || r.trim().toLocaleUpperCase('tr-TR') !== 'SİL') return;
+  S = defState(); save(); siteSel = null; renderAll(); loadLogForm(todayStr()); toast('Tüm veriler silindi');
+});
+
+/* ================= Başlangıç ================= */
+$('iDt').value = nowInput();
+$('iMg').value = fmt(S.settings.targetMg, 3); syncFromMg();
+loadLogForm(todayStr());
+renderAll();
+const startTab = (location.hash || '').slice(1);
+go(['ozet', 'kayit', 'grafik', 'veri'].includes(startTab) ? startTab : 'ozet');
+document.addEventListener('visibilitychange', () => { if (!document.hidden) renderAll(); });
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
